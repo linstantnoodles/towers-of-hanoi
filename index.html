@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <title>Towers of Hanoi</title>
+</head>
+<body>
+    <div>
+        <input type="number" name="speed" value="1000"/>
+        <button id="solve">Solve</button>
+    </div>
+    <canvas id="game" width="1000" height="1000"></canvas>
+    <script type="text/javascript">
+        // Models 
+        class Disc {
+            constructor(id, size) { 
+                this.id = id;
+                this.size = size;
+            }
+        }
+        class Peg {
+            constructor(id) {
+                this.id = id;
+                this.stack = [];
+            }
+            addDisc(disc) { 
+                let topDisc = this.peek();
+                if (topDisc && topDisc.size < disc.size) {
+                    throw "Cannot place larger disc on top of smaller disc";
+                }
+                return this.stack.push(disc);
+            }
+            peek() {
+                if (!this.size()) {
+                    return;
+                }
+                return this.stack[this.size() - 1];
+            }
+            removeDisc() {
+                return this.stack.pop();
+            }
+            size() {
+                return this.stack.length;
+            }
+        }
+        
+        // UI
+        let canvas = document.getElementById("game");
+        let ctx = canvas.getContext('2d');
+        let discColorMap = ((map) => {
+            for (let i = 0; i < 5; i++) {
+                let R=(Math.floor(Math.random() * 255));
+                let G=(Math.floor(Math.random() * 255));
+                let B=(Math.floor(Math.random() * 255));
+                let color = `rgb(${R}, ${G}, ${B})`;
+                map[i] = color;
+            }
+            return map;
+        })({});
+        let speed = 500;
+
+        // UI Components
+        // Wraps domain objects with graphics methods and state
+        class DiscComponent { 
+            constructor(disc, x, y, leftOffset, i, pegWidth, pegHeight, colorMap) {
+                this.disc = disc
+                this.color = colorMap[disc.id] || "#000";
+                this.pegWidth = pegWidth;
+                this.pegHeight = pegHeight;
+                this.leftOffset = leftOffset;
+                this.x = x;
+                this.y = y;
+                this.i = i;
+            }
+            render() {
+                let discHeight = 20;
+                let discBaseWidth = 50;
+                let currDiscWidth = (this.disc.size * 2) + discBaseWidth;
+                let dx = this.leftOffset - (currDiscWidth/ 2) + (this.pegWidth / 2);
+                let dy = this.y + (this.pegHeight - (this.i * discHeight)) - discHeight;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(dx, dy, currDiscWidth, discHeight);
+            }
+        }
+
+        class PegComponent { 
+            constructor(peg, i, boardX, boardY) {  
+                this.width = 10;
+                this.height = 200;
+                // peg may disappear if your canvas dimensions are too small
+                // note: this should probably be larger than disc widths, or rather max width
+                // of disc should be smaller than a peg base
+                let pegBase = 200;
+                this.i = i;
+                this.x = boardX + (i * pegBase);
+                this.y = boardY;
+                // offset from X by half the distance of the base 
+                // so that there is enough room for a disc
+                this.leftOffset = this.x + (pegBase / 2);
+                let discs = peg.stack;
+                this.discs = peg.stack.map((x, idx) => {
+                    return new DiscComponent(
+                        x,
+                        this.x,
+                        this.y,
+                        this.leftOffset,
+                        idx,
+                        this.width,
+                        this.height,
+                        discColorMap
+                    );
+                });
+            }
+            render() {
+                ctx.fillStyle = "#c68c53";
+                console.log(this.leftOffset, this.y, this.width, this.height);
+                ctx.fillRect(this.leftOffset, this.y, this.width, this.height);
+                for (let i = 0; i < this.discs.length; i++) {
+                    this.discs[i].render();
+                }
+            }
+        }
+
+        class Game {
+            constructor(pegs, boardX, boardY) {
+                this.pegs = pegs.map((x, idx) => {
+                    return new PegComponent(x, idx, boardX, boardY);
+                });
+            }
+            render() {
+                for (let i = 0; i < this.pegs.length; i++) {
+                    this.pegs[i].render();
+                }
+            }
+        }
+
+        let d1 = new Disc(0, 50);
+        let d2 = new Disc(1, 25);
+        let d3 = new Disc(2, 10);
+        let d4 = new Disc(3, 1);
+        let x = new Peg(0);
+        let y = new Peg(1);
+        let z = new Peg(2);
+        x.addDisc(d1);
+        x.addDisc(d2);
+        x.addDisc(d3);
+        x.addDisc(d4);
+
+        let states = [towerState([x, y, z])];
+        function towerState(pegs) { 
+            let hash = {};
+            for (let i = 0; i < pegs.length; i ++) {
+                hash[pegs[i].id] = pegs[i];
+            }
+            return new Game([hash[0], hash[1], hash[2]], 400, 100);
+        }
+
+        function animateState(i) {
+            if (i >= states.length) {
+                return;
+            }
+            setTimeout(() => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                states[i].render();
+                animateState(i + 1);
+            }, speed);
+        }
+
+        function moveDiscs(origin, target, temp, discs) {
+            if (discs < 1) {
+                return;
+            }
+            if (discs == 1) {
+                target.addDisc(origin.removeDisc());
+                states.push(towerState([origin, target, temp]));
+                return;
+            }
+            moveDiscs(origin, temp, target, discs - 1);
+            target.addDisc(origin.removeDisc());
+            states.push(towerState([origin, target, temp]));
+            moveDiscs(temp, target, origin, discs - 1);
+        }
+
+
+        animateState(0);  
+        let solveBtn = document.getElementById("solve"); 
+        solveBtn.addEventListener("click", () => {
+            moveDiscs(x, z, y, x.size());
+            animateState(1);  
+        });
+
+        // peg count
+        // anki
+        // meta tag and what it's for 
+        // class declaration.
+        // stack operations and effets of arrays
+        // getElemenyById, what happens if nothing
+        // getting context, what 2d meanskk
+        // what coordinates mean. x is from left?  y is .. from top?. starts upper left
+        // does rectangle draw up or down?
+        // map with index 
+    </script>
+</body>
+</html>
